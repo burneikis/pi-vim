@@ -13,6 +13,7 @@ import type { TUI, EditorOptions, EditorTheme } from "@mariozechner/pi-tui";
 import { createInitialState, modeDisplayName, type VimState } from "./state.js";
 import { handleNormalMode, type NormalModeContext } from "./modes/normal.js";
 import { handleInsertMode, type InsertModeContext } from "./modes/insert.js";
+import { handleVisualMode, getVisualRange, type VisualModeContext } from "./modes/visual.js";
 import { ESCAPE_SEQS } from "./keys.js";
 
 export class VimEditor extends CustomEditor {
@@ -38,6 +39,11 @@ export class VimEditor extends CustomEditor {
 
       case "normal":
         this.handleNormal(data);
+        break;
+
+      case "visual":
+      case "visual-line":
+        this.handleVisual(data);
         break;
 
       default:
@@ -74,6 +80,18 @@ export class VimEditor extends CustomEditor {
     handleNormalMode(data, ctx);
   }
 
+  private handleVisual(data: string): void {
+    const ctx: VisualModeContext = {
+      state: this.vimState,
+      superHandleInput: (d) => super.handleInput(d),
+      getText: () => this.getText(),
+      getCursor: () => this.getCursor(),
+      setText: (text) => this.setText(text),
+      moveCursorTo: (line, col) => this.moveCursorTo(line, col),
+    };
+    handleVisualMode(data, ctx);
+  }
+
   /**
    * Move cursor to an absolute position by using escape sequences.
    * Re-reads getCursor() for accurate positioning (important after setText which moves to end).
@@ -103,6 +121,14 @@ export class VimEditor extends CustomEditor {
     const lines = super.render(width);
     if (lines.length === 0) return lines;
 
+    // Apply visual selection highlighting if in visual mode
+    if (
+      (this.vimState.mode === "visual" || this.vimState.mode === "visual-line") &&
+      this.vimState.visualAnchor
+    ) {
+      this.applyVisualHighlight(lines, width);
+    }
+
     // Add mode indicator to the bottom border (right side)
     const modeName = modeDisplayName(this.vimState.mode);
     const label = ` ${modeName} `;
@@ -114,4 +140,195 @@ export class VimEditor extends CustomEditor {
 
     return lines;
   }
+
+  /**
+   * Apply reverse-video highlighting to the visual selection range in rendered output.
+   *
+   * The rendered output from super.render() is structured as:
+   *   [top border, ...content lines (with padding), bottom border, ...autocomplete]
+   *
+   * Content lines have format: `${leftPadding}${displayText}${rightPadding}`
+   * where padding is `paddingX` spaces on each side (default 0).
+   * The editor also inserts CURSOR_MARKER (APC sequence) and cursor highlighting.
+   *
+   * We use pi-tui's extractAnsiCode to properly skip ALL escape sequences
+   * (CSI, OSC, APC) when counting visible positions.
+   */
+  private applyVisualHighlight(renderedLines: string[], width: number): void {
+    const text = this.getText();
+    const textLines = text.split("\n");
+    const cursor = this.getCursor();
+    const range = getVisualRange(this.vimState, cursor, textLines);
+
+    // The editor uses paddingX (default 0) for left/right content padding.
+    // With paddingX=0: contentWidth = width, layoutWidth = width - 1
+    // Content lines start at renderedLines[1] through renderedLines[length-2].
+    // The padding property is accessed via getPadding().
+    const paddingX = this.getPaddingX();
+    const contentWidth = Math.max(1, width - paddingX * 2);
+    const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
+
+    // Map text line index → first rendered line index (1-based, after top border)
+    const textLineToRenderedStart: number[] = [];
+    let renderedIdx = 1; // skip top border
+    for (let i = 0; i < textLines.length; i++) {
+      textLineToRenderedStart.push(renderedIdx);
+      const lineLen = Math.max(1, visibleWidth(textLines[i] || ""));
+      const wrappedCount = Math.ceil(lineLen / layoutWidth);
+      renderedIdx += wrappedCount;
+    }
+
+    // Highlight the selected ranges
+    for (let textLine = range.start.line; textLine <= range.end.line; textLine++) {
+      const lineText = textLines[textLine] || "";
+      const renderedStart = textLineToRenderedStart[textLine];
+      if (renderedStart === undefined) continue;
+
+      let selStartCol: number;
+      let selEndCol: number;
+
+      if (range.linewise) {
+        selStartCol = 0;
+        selEndCol = lineText.length;
+      } else {
+        selStartCol = textLine === range.start.line ? range.start.col : 0;
+        selEndCol =
+          textLine === range.end.line ? range.end.col + 1 : lineText.length;
+      }
+
+      // Apply highlighting across wrapped lines
+      const lineLen = Math.max(1, lineText.length);
+      const wrappedCount = Math.ceil(lineLen / layoutWidth);
+
+      for (let wrap = 0; wrap < wrappedCount; wrap++) {
+        const rIdx = renderedStart + wrap;
+        if (rIdx >= renderedLines.length - 1) break; // don't touch bottom border
+
+        const wrapStartCol = wrap * layoutWidth;
+        const wrapEndCol = wrapStartCol + layoutWidth;
+
+        // Intersection of selection with this wrapped segment
+        const hlStart = Math.max(selStartCol, wrapStartCol) - wrapStartCol;
+        const hlEnd = Math.min(selEndCol, wrapEndCol) - wrapStartCol;
+
+        if (hlStart < hlEnd) {
+          // Offset by paddingX for left padding
+          renderedLines[rIdx] = highlightRenderedLine(
+            renderedLines[rIdx]!,
+            hlStart + paddingX,
+            hlEnd + paddingX,
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Detect an escape sequence at position `pos` in `str`.
+ * Returns the length of the escape sequence, or 0 if none found.
+ *
+ * Handles:
+ * - CSI sequences: \x1b[ ... m/G/K/H/J
+ * - OSC sequences: \x1b] ... BEL or \x1b] ... ST(\x1b\\)
+ * - APC sequences: \x1b_ ... BEL or \x1b_ ... ST(\x1b\\)
+ */
+function escapeSeqLength(str: string, pos: number): number {
+  if (pos >= str.length || str[pos] !== "\x1b") return 0;
+  const next = str[pos + 1];
+
+  // CSI: \x1b[ ... terminator
+  if (next === "[") {
+    let j = pos + 2;
+    while (j < str.length && !/[mGKHJ]/.test(str[j]!)) j++;
+    if (j < str.length) return j + 1 - pos;
+    return 0;
+  }
+
+  // OSC: \x1b] ... BEL or ST
+  if (next === "]") {
+    let j = pos + 2;
+    while (j < str.length) {
+      if (str[j] === "\x07") return j + 1 - pos;
+      if (str[j] === "\x1b" && str[j + 1] === "\\") return j + 2 - pos;
+      j++;
+    }
+    return 0;
+  }
+
+  // APC: \x1b_ ... BEL or ST
+  if (next === "_") {
+    let j = pos + 2;
+    while (j < str.length) {
+      if (str[j] === "\x07") return j + 1 - pos;
+      if (str[j] === "\x1b" && str[j + 1] === "\\") return j + 2 - pos;
+      j++;
+    }
+    return 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Insert reverse-video ANSI codes into a rendered line at specific visible column positions.
+ * Properly handles CSI, OSC, and APC escape sequences (including CURSOR_MARKER).
+ *
+ * `startVisCol` and `endVisCol` are 0-indexed visible column positions to highlight.
+ */
+function highlightRenderedLine(
+  line: string,
+  startVisCol: number,
+  endVisCol: number,
+): string {
+  let result = "";
+  let visCol = 0;
+  let i = 0;
+  let started = false;
+  let ended = false;
+
+  while (i < line.length) {
+    // Check for any escape sequence (CSI, OSC, APC)
+    const seqLen = escapeSeqLength(line, i);
+    if (seqLen > 0) {
+      // Insert highlight markers before this escape sequence if needed
+      if (!started && visCol >= startVisCol) {
+        result += "\x1b[7m";
+        started = true;
+      }
+      if (started && !ended && visCol >= endVisCol) {
+        result += "\x1b[27m";
+        ended = true;
+      }
+
+      result += line.substring(i, i + seqLen);
+      i += seqLen;
+      continue;
+    }
+
+    // Insert highlight markers at the right visible positions
+    if (!started && visCol === startVisCol) {
+      result += "\x1b[7m";
+      started = true;
+    }
+    if (started && !ended && visCol === endVisCol) {
+      result += "\x1b[27m";
+      ended = true;
+    }
+
+    result += line[i];
+    // Only count printable characters as visible
+    const code = line.charCodeAt(i);
+    if (code >= 0x20) {
+      visCol++;
+    }
+    i++;
+  }
+
+  // Close highlight if we reached end of line before endVisCol
+  if (started && !ended) {
+    result += "\x1b[27m";
+  }
+
+  return result;
 }

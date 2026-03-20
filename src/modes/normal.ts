@@ -514,6 +514,23 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
       return true;
     }
 
+    // === Visual mode entry ===
+    case "v": {
+      state.mode = "visual";
+      const cursor = ctx.getCursor();
+      state.visualAnchor = { line: cursor.line, col: cursor.col };
+      resetOperatorState(state);
+      return true;
+    }
+
+    case "V": {
+      state.mode = "visual-line";
+      const cursor = ctx.getCursor();
+      state.visualAnchor = { line: cursor.line, col: cursor.col };
+      resetOperatorState(state);
+      return true;
+    }
+
     // === Basic editing ===
     case "x": {
       // x = dl (delete char under cursor)
