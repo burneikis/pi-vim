@@ -25,6 +25,10 @@ export interface VimState {
   visualAnchor: { line: number; col: number } | null;
   /** Whether we're accumulating digits for a count */
   countStarted: boolean;
+  /** Pending character motion: 'f', 'F', 't', 'T', or 'r' (waiting for next char) */
+  pendingCharMotion: string | null;
+  /** Whether we're waiting for the second key after 'g' (e.g., gg) */
+  pendingG: boolean;
 }
 
 export function createInitialState(): VimState {
@@ -36,6 +40,8 @@ export function createInitialState(): VimState {
     lastChange: null,
     visualAnchor: null,
     countStarted: false,
+    pendingCharMotion: null,
+    pendingG: false,
   };
 }
 
@@ -43,6 +49,8 @@ export function resetOperatorState(state: VimState): void {
   state.count = 0;
   state.countStarted = false;
   state.pendingOperator = null;
+  state.pendingCharMotion = null;
+  state.pendingG = false;
 }
 
 export function modeDisplayName(mode: VimMode): string {
