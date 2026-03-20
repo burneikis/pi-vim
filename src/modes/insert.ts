@@ -8,6 +8,7 @@ import { matchesKey } from "@mariozechner/pi-tui";
 
 export interface InsertModeContext {
   state: VimState;
+  getCursor: () => { line: number; col: number };
   superHandleInput: (data: string) => void;
 }
 
@@ -15,12 +16,18 @@ export interface InsertModeContext {
  * Handle input in insert mode.
  * Returns true if the key was handled, false if it should be passed to super.
  */
-export function handleInsertMode(data: string, ctx: InsertModeContext): boolean {
+export function handleInsertMode(
+  data: string,
+  ctx: InsertModeContext,
+): boolean {
   // Escape or Ctrl+[ → switch to normal mode
   if (matchesKey(data, "escape") || data === "\x1b") {
     ctx.state.mode = "normal";
     // Move cursor left one position (vim behavior: cursor moves back on Escape)
-    ctx.superHandleInput("\x1b[D");
+    // but only if not already at column 0 (to prevent moving up a line)
+    if (ctx.getCursor().col > 0) {
+      ctx.superHandleInput("\x1b[D");
+    }
     return true;
   }
 

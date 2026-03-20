@@ -4,7 +4,11 @@
  */
 
 import { CustomEditor } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import {
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+} from "@mariozechner/pi-tui";
 import type { TUI, EditorOptions, EditorTheme } from "@mariozechner/pi-tui";
 import { createInitialState, modeDisplayName, type VimState } from "./state.js";
 import { handleNormalMode, type NormalModeContext } from "./modes/normal.js";
@@ -14,7 +18,12 @@ import { ESCAPE_SEQS } from "./keys.js";
 export class VimEditor extends CustomEditor {
   public vimState: VimState;
 
-  constructor(tui: TUI, theme: EditorTheme, keybindings: any, options?: EditorOptions) {
+  constructor(
+    tui: TUI,
+    theme: EditorTheme,
+    keybindings: any,
+    options?: EditorOptions,
+  ) {
     super(tui, theme, keybindings, options);
     this.vimState = createInitialState();
   }
@@ -41,6 +50,7 @@ export class VimEditor extends CustomEditor {
   private handleInsert(data: string): void {
     const ctx: InsertModeContext = {
       state: this.vimState,
+      getCursor: () => this.getCursor(),
       superHandleInput: (d) => super.handleInput(d),
     };
     handleInsertMode(data, ctx);
@@ -98,7 +108,8 @@ export class VimEditor extends CustomEditor {
     const label = ` ${modeName} `;
     const last = lines.length - 1;
     if (visibleWidth(lines[last]!) >= label.length) {
-      lines[last] = truncateToWidth(lines[last]!, width - label.length, "") + label;
+      lines[last] =
+        truncateToWidth(lines[last]!, width - label.length, "") + label;
     }
 
     return lines;
