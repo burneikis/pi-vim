@@ -274,6 +274,11 @@ function escapeSeqLength(str: string, pos: number): number {
  * Insert reverse-video ANSI codes into a rendered line at specific visible column positions.
  * Properly handles CSI, OSC, and APC escape sequences (including CURSOR_MARKER).
  *
+ * When the cursor falls inside the highlighted range, the editor's cursor rendering
+ * inserts `\x1b[0m` (full reset) after the cursor character, which would kill the
+ * reverse video for the rest of the selection. We detect this and re-inject `\x1b[7m`
+ * after any SGR reset that falls within the highlighted range.
+ *
  * `startVisCol` and `endVisCol` are 0-indexed visible column positions to highlight.
  */
 function highlightRenderedLine(
@@ -301,7 +306,17 @@ function highlightRenderedLine(
         ended = true;
       }
 
-      result += line.substring(i, i + seqLen);
+      const seq = line.substring(i, i + seqLen);
+      result += seq;
+
+      // If we're inside the highlight range and this is a SGR reset (\x1b[0m),
+      // re-inject reverse video to keep the selection highlighted.
+      // The editor's cursor rendering uses \x1b[0m after the cursor character,
+      // which would otherwise kill our reverse video.
+      if (started && !ended && isResetSequence(seq)) {
+        result += "\x1b[7m";
+      }
+
       i += seqLen;
       continue;
     }
@@ -331,4 +346,12 @@ function highlightRenderedLine(
   }
 
   return result;
+}
+
+/**
+ * Check if an ANSI sequence is an SGR reset that would clear reverse video.
+ * Matches \x1b[0m and \x1b[m (both are full SGR resets).
+ */
+function isResetSequence(seq: string): boolean {
+  return seq === "\x1b[0m" || seq === "\x1b[m";
 }
