@@ -176,6 +176,9 @@ Operators:
 - `d` — delete (cut to register)
 - `c` — change (delete + enter insert mode)
 - `y` — yank (copy to register)
+- `D` — delete to end of line (special case)
+- `C` — change to end of line (delete to end + insert mode)
+- `Y` — yank whole line (special case)
 - `>` / `<` — indent / dedent
 - `dd` / `cc` / `yy` — linewise (operator doubled = whole line)
 
