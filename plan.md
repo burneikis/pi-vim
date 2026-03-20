@@ -272,12 +272,15 @@ Record each "change" (insert session, delete, replace, etc.) as a replayable seq
 - `Ctrl+r` — redo (if available)
 - `>>` / `<<` — indent/dedent current line
 
-#### 7.2 — Marks (Stretch)
+#### 7.2 — Cursor styles
+- Block, beam, underline cursor styles based on mode (if supported by terminal)
+
+#### 7.3 — Marks (Stretch)
 
 - `m{a-z}` — set mark
 - `'{a-z}` / `` `{a-z} `` — jump to mark (line / exact position)
 
-#### 7.3 — Macros (Stretch)
+#### 7.4 — Macros (Stretch)
 
 - `q{a-z}` — record macro
 - `@{a-z}` — play macro
