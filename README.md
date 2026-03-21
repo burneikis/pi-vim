@@ -1,11 +1,11 @@
 # pi-vim
 
-Vim motions extension for [pi-coding-agent](https://github.com/nicholasgasior/pi-coding-agent). Replaces the default input editor with a vim-modal editor supporting normal, insert, visual, and replace modes.
+Vim motions extension for [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent). Replaces the default input editor with a vim-modal editor supporting normal, insert, visual, and replace modes.
 
 ## Install
 
 ```bash
-pi ext add https://github.com/aburneikis/pi-vim
+git clone https://github.com/burneikis/pi-vim ~/.pi/agent/extensions/pi-vim
 ```
 
 ## Features
