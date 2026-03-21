@@ -2,7 +2,7 @@
  * Vim state machine - tracks current mode, pending operations, and repeat info.
  */
 
-export type VimMode = "normal" | "insert" | "visual" | "visual-line" | "command-line" | "operator-pending";
+export type VimMode = "normal" | "insert" | "replace" | "visual" | "visual-line" | "command-line" | "operator-pending";
 
 export interface RecordedChange {
   /** The keys that triggered this change */
@@ -69,6 +69,7 @@ export function modeDisplayName(mode: VimMode): string {
   switch (mode) {
     case "normal": return "NORMAL";
     case "insert": return "INSERT";
+    case "replace": return "REPLACE";
     case "visual": return "VISUAL";
     case "visual-line": return "V-LINE";
     case "command-line": return "COMMAND";

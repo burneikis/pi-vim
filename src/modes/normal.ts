@@ -46,6 +46,7 @@ import {
   getLastChange,
   isCurrentlyRecording,
 } from "../repeat.js";
+import { resetReplaceState } from "./replace.js";
 import {
   beginSearch,
   searchNext,
@@ -735,6 +736,27 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
       state.pendingCharMotion = "r";
       return true;
 
+    case "R":
+      // Enter replace mode (overtype)
+      beginChangeRecording(state, "R", count);
+      markInsertEntry();
+      resetReplaceState();
+      state.mode = "replace";
+      resetOperatorState(state);
+      return true;
+
+    // === Undo / Redo ===
+    case "u":
+      // Undo: send ctrl+- (the default undo keybinding) to the base editor
+      ctx.superHandleInput("\x1f");
+      resetOperatorState(state);
+      return true;
+
+    case "\x12":
+      // Ctrl+r (redo) - base editor doesn't support redo, consume silently
+      resetOperatorState(state);
+      return true;
+
     // === Join lines ===
     case "J": {
       beginChangeRecording(state, "J", count);
@@ -890,18 +912,52 @@ function replayLastChange(ctx: NormalModeContext, countOverride: number): void {
       handleNormalMode(key, ctx);
     }
 
-    // If the change entered insert mode, type the recorded insert text then escape
-    if (change.enteredInsert && state.mode === "insert") {
-      for (const ch of change.insertedText) {
-        if (ch === "\n") {
-          ctx.superHandleInput("\n");
-        } else {
-          ctx.superHandleInput(ch);
+    // If the change entered insert or replace mode, type the recorded text then escape
+    if (change.enteredInsert && (state.mode === "insert" || state.mode === "replace")) {
+      const wasReplace = state.mode === "replace";
+      if (wasReplace) {
+        // In replace mode, we need to overtype characters
+        const lines = ctx.getText().split("\n");
+        const cursor = ctx.getCursor();
+        let line = lines[cursor.line] || "";
+        let col = cursor.col;
+
+        for (const ch of change.insertedText) {
+          if (ch === "\n") {
+            // Split line at cursor for newline
+            const before = line.substring(0, col);
+            const after = line.substring(col);
+            lines[cursor.line] = before;
+            lines.splice(cursor.line + 1, 0, after);
+            cursor.line++;
+            col = 0;
+            line = lines[cursor.line] || "";
+          } else if (col < line.length) {
+            // Overtype
+            line = line.substring(0, col) + ch + line.substring(col + 1);
+            lines[cursor.line] = line;
+            col++;
+          } else {
+            // Append at end
+            line = line + ch;
+            lines[cursor.line] = line;
+            col++;
+          }
+        }
+        ctx.setText(lines.join("\n"));
+        ctx.moveCursorTo(cursor.line, Math.max(0, col - 1));
+      } else {
+        for (const ch of change.insertedText) {
+          if (ch === "\n") {
+            ctx.superHandleInput("\n");
+          } else {
+            ctx.superHandleInput(ch);
+          }
         }
       }
-      // Exit insert mode
+      // Exit insert/replace mode
       state.mode = "normal";
-      if (ctx.getCursor().col > 0) {
+      if (!wasReplace && ctx.getCursor().col > 0) {
         ctx.superHandleInput("\x1b[D"); // left
       }
     }

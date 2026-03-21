@@ -13,6 +13,7 @@ import type { TUI, EditorOptions, EditorTheme } from "@mariozechner/pi-tui";
 import { createInitialState, modeDisplayName, type VimState } from "./state.js";
 import { handleNormalMode, type NormalModeContext } from "./modes/normal.js";
 import { handleInsertMode, type InsertModeContext } from "./modes/insert.js";
+import { handleReplaceMode, resetReplaceState, type ReplaceModeContext } from "./modes/replace.js";
 import { handleVisualMode, getVisualRange, type VisualModeContext } from "./modes/visual.js";
 import { ESCAPE_SEQS } from "./keys.js";
 import {
@@ -43,6 +44,10 @@ export class VimEditor extends CustomEditor {
         this.handleInsert(data);
         break;
 
+      case "replace":
+        this.handleReplace(data);
+        break;
+
       case "normal":
         this.handleNormal(data);
         break;
@@ -61,6 +66,8 @@ export class VimEditor extends CustomEditor {
         super.handleInput(data);
         break;
     }
+
+
   }
 
   private handleInsert(data: string): void {
@@ -70,6 +77,18 @@ export class VimEditor extends CustomEditor {
       superHandleInput: (d) => super.handleInput(d),
     };
     handleInsertMode(data, ctx);
+  }
+
+  private handleReplace(data: string): void {
+    const ctx: ReplaceModeContext = {
+      state: this.vimState,
+      getCursor: () => this.getCursor(),
+      getText: () => this.getText(),
+      setText: (text) => this.setText(text),
+      moveCursorTo: (line, col) => this.moveCursorTo(line, col),
+      superHandleInput: (d) => super.handleInput(d),
+    };
+    handleReplaceMode(data, ctx);
   }
 
   private handleNormal(data: string): void {
