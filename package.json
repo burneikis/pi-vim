@@ -1,6 +1,6 @@
 {
   "name": "@burneikis/pi-vim",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Vim motions extension for pi – normal, insert, visual, and replace modes with operators, motions, text objects, registers, search, and repeat",
   "license": "MIT",
   "author": "burneikis",
@@ -35,6 +35,12 @@
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@mariozechner/pi-tui": "*",
+    "@burneikis/pi-fzfp": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@burneikis/pi-fzfp": {
+      "optional": true
+    }
   }
 }
