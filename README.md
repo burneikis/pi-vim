@@ -16,7 +16,7 @@ To also enable the [pi-fzfp](https://github.com/burneikis/pi-fzfp) fuzzy file pi
 
 ```bash
 pi install git:github.com/burneikis/pi-vim
-cd ~/.pi/agent/extensions/pi-vim
+cd ~/.pi/agent/git/github.com/burneikis/pi-vim
 npm install @burneikis/pi-fzfp
 ```
 
