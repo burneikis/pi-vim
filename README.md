@@ -5,20 +5,20 @@ Vim motions extension for [pi-coding-agent](https://github.com/badlogic/pi-mono/
 ## Branches
 
 - **`main`** — Vim motions only
-- **`fzfp`** — Vim motions + integrated [pi-fzfp](https://github.com/aburneikis/pi-fzfp) fuzzy file picker
+- **`fzfp`** — Vim motions + integrated [pi-fzfp](https://github.com/burneikis/pi-fzfp) fuzzy file picker
 
 ## Install
 
 ### Vim only (main branch)
 
 ```bash
-pi install git:github.com/aburneikis/pi-vim
+pi install git:github.com/burneikis/pi-vim
 ```
 
 ### Vim + Fuzzy File Picker (fzfp branch)
 
 ```bash
-pi install git:github.com/aburneikis/pi-vim#fzfp
+pi install git:github.com/burneikis/pi-vim#fzfp
 cd ~/.pi/agent/extensions/pi-vim
 npm install
 ```
