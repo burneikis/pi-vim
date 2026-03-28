@@ -8,20 +8,15 @@ Vim motions extension for [pi-coding-agent](https://github.com/badlogic/pi-mono/
 pi install npm:@burneikis/pi-vim
 ```
 
-### With Fuzzy File Picker (optional)
+### Fuzzy File Picker (included by default)
 
-To add the [pi-fzfp](https://github.com/burneikis/pi-fzfp) fuzzy file picker, install it into pi-vim's package directory:
-
-```bash
-cd $(npm root -g)/@burneikis/pi-vim
-npm install @burneikis/pi-fzfp
-```
-
-pi-vim detects pi-fzfp at startup and integrates it automatically.
+The [pi-fzfp](https://github.com/burneikis/pi-fzfp) fuzzy file picker is installed automatically as an optional dependency. pi-vim detects it at startup and integrates it — no extra steps needed.
 
 > **Note:** The fuzzy file picker requires [`fd`](https://github.com/sharkdp/fd) on your `PATH`.
 >
 > **Do not install `@burneikis/pi-fzfp` as a separate pi package** — both extensions replace the editor, so loading both will cause a conflict.
+
+If pi-fzfp fails to install (e.g. network issues), pi-vim still works — just without the fuzzy file picker.
 
 ## Features
 

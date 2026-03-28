@@ -34,16 +34,10 @@
     ]
   },
   "peerDependencies": {
-    "@burneikis/pi-fzfp": ">=2.0.0",
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
   },
-  "peerDependenciesMeta": {
-    "@burneikis/pi-fzfp": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
+  "dependencies": {
     "@burneikis/pi-fzfp": "^2.1.0"
   }
 }
