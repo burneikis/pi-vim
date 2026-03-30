@@ -8,15 +8,17 @@ Vim motions extension for [pi-coding-agent](https://github.com/badlogic/pi-mono/
 pi install npm:@burneikis/pi-vim
 ```
 
-### Fuzzy File Picker (included by default)
+### With Fuzzy File Picker
 
-The [pi-fzfp](https://github.com/burneikis/pi-fzfp) fuzzy file picker is installed automatically as an optional dependency. pi-vim detects it at startup and integrates it — no extra steps needed.
+Install [pi-fzfp](https://github.com/burneikis/pi-fzfp) as a separate pi package alongside pi-vim:
 
-> **Note:** The fuzzy file picker requires [`fd`](https://github.com/sharkdp/fd) on your `PATH`.
->
-> **Do not install `@burneikis/pi-fzfp` as a separate pi package** — both extensions replace the editor, so loading both will cause a conflict.
+```bash
+pi install npm:@burneikis/pi-fzfp
+```
 
-If pi-fzfp fails to install (e.g. network issues), pi-vim still works — just without the fuzzy file picker.
+That's it. When both are installed, pi-vim detects pi-fzfp at startup and integrates its fuzzy autocomplete automatically. pi-fzfp will not install its own editor — pi-vim handles the editor and wraps its autocomplete provider with fzfp's fuzzy matching.
+
+> **Requires** [`fd`](https://github.com/sharkdp/fd) and [`fzf`](https://github.com/junegunn/fzf) on your `PATH`.
 
 ## Features
 
@@ -29,9 +31,49 @@ If pi-fzfp fails to install (e.g. network issues), pi-vim still works — just w
 - Registers and yank/paste
 - Dot repeat
 
-### Fuzzy File Picker (optional)
+### Fuzzy File Picker (optional, via pi-fzfp)
 - Replaces `@file` autocomplete with weighted dual-key fuzzy matching
 - Basename matches scored 2× higher than path matches
 - Suffix alignment bonus for extension-aware matching (`@acts` → `abct.ts` over `abct.scss`)
 - Path prefix pre-filtering when query contains `/`
 - Test file penalty as a tiebreaker
+
+## Integration Protocol
+
+pi-vim and pi-fzfp coordinate via `pi.events` so they work regardless of which extension loads first. Other custom editors can use the same protocol to integrate pi-fzfp.
+
+### As an editor extension that wants pi-fzfp integration
+
+Register listeners during your extension factory (before `session_start`), so they are in place regardless of load order:
+
+```typescript
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { AutocompleteProvider } from "@mariozechner/pi-tui";
+
+export default function (pi: ExtensionAPI) {
+  let wrapAutocomplete: ((provider: AutocompleteProvider) => AutocompleteProvider) | undefined;
+
+  // Tell pi-fzfp not to set its own editor component.
+  pi.events.on("pi-fzfp:check-editor", (ack: () => void) => { ack(); });
+
+  // Receive the provider (pi-fzfp emits this from both its factory and
+  // session_start to cover both load orderings).
+  pi.events.on("pi-fzfp:provider", (fn: (provider: AutocompleteProvider) => AutocompleteProvider) => {
+    wrapAutocomplete = fn;
+  });
+
+  pi.on("session_start", (_event, ctx) => {
+    ctx.ui.setEditorComponent((tui, theme, keybindings) =>
+      new MyEditor(tui, theme, keybindings, wrapAutocomplete)
+    );
+  });
+}
+```
+
+Then apply `wrapAutocomplete` inside your editor's `setAutocompleteProvider`:
+
+```typescript
+override setAutocompleteProvider(provider: AutocompleteProvider): void {
+  super.setAutocompleteProvider(this.wrapAutocomplete ? this.wrapAutocomplete(provider) : provider);
+}
+```

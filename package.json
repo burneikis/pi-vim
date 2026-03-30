@@ -37,7 +37,7 @@
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
   },
-  "dependencies": {
+  "optionalDependencies": {
     "@burneikis/pi-fzfp": "^2.1.0"
   }
 }
