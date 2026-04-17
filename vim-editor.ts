@@ -5,6 +5,7 @@
 
 import { CustomEditor } from "@mariozechner/pi-coding-agent";
 import {
+  CURSOR_MARKER,
   matchesKey,
   truncateToWidth,
   visibleWidth,
@@ -28,6 +29,14 @@ export class VimEditor extends CustomEditor {
   private redoStack: Array<{ lines: string[]; cursorLine: number; cursorCol: number }> = [];
   private wrapAutocomplete: ((provider: AutocompleteProvider) => AutocompleteProvider) | undefined;
 
+  /**
+   * DECSCUSR cursor styles:
+   *   2 => steady block
+   *   6 => steady bar (thin)
+   */
+  private static readonly CURSOR_BLOCK = "\x1b[2 q";
+  private static readonly CURSOR_BAR = "\x1b[6 q";
+
   constructor(
     tui: TUI,
     theme: EditorTheme,
@@ -38,6 +47,23 @@ export class VimEditor extends CustomEditor {
     super(tui, theme, keybindings, options);
     this.vimState = createInitialState();
     this.wrapAutocomplete = wrapAutocomplete;
+    this.applyCursorShapeForMode(this.vimState.mode);
+  }
+
+  /**
+   * Apply a hardware cursor shape for the current vim mode.
+   * Insert mode uses a thin bar; all other modes use a block.
+   */
+  private applyCursorShapeForMode(mode: VimState["mode"]): void {
+    const seq = mode === "insert"
+      ? VimEditor.CURSOR_BAR
+      : VimEditor.CURSOR_BLOCK;
+
+    try {
+      this.tui.terminal.write(seq);
+    } catch {
+      // Ignore terminals that don't support DECSCUSR.
+    }
   }
 
   /**
@@ -87,6 +113,7 @@ export class VimEditor extends CustomEditor {
 
   handleInput(data: string): void {
     const { vimState } = this;
+    const modeBefore = vimState.mode;
     const textBefore = this.getText();
     const redoStackBefore = this.redoStack.length;
 
@@ -122,6 +149,10 @@ export class VimEditor extends CustomEditor {
     // If the redo stack changed size, it was an undo/redo operation — don't clear.
     if (this.redoStack.length === redoStackBefore && this.getText() !== textBefore) {
       this.redoStack.length = 0;
+    }
+
+    if (this.vimState.mode !== modeBefore) {
+      this.applyCursorShapeForMode(this.vimState.mode);
     }
   }
 
@@ -222,9 +253,35 @@ export class VimEditor extends CustomEditor {
     }
   }
 
+  /**
+   * In insert mode, remove the software reverse-video cursor cell that the base
+   * editor draws, so the terminal hardware cursor shape (bar) is visible.
+   *
+   * The hardware cursor marker remains in place for IME/cursor positioning.
+   */
+  private stripSoftCursorHighlight(line: string): string {
+    const markerIndex = line.indexOf(CURSOR_MARKER);
+    if (markerIndex === -1) return line;
+
+    const markerEnd = markerIndex + CURSOR_MARKER.length;
+    const before = line.slice(0, markerEnd);
+    const after = line.slice(markerEnd);
+
+    // Base editor emits cursor as: \x1b[7m<grapheme>\x1b[0m immediately after marker.
+    const strippedAfter = after.replace(/^\x1b\[7m([\s\S]*?)\x1b\[0m/, "$1");
+    return before + strippedAfter;
+  }
+
   render(width: number): string[] {
     const lines = super.render(width);
     if (lines.length === 0) return lines;
+
+    // Show only the hardware cursor in insert mode so bar shape is visible.
+    if (this.vimState.mode === "insert") {
+      for (let i = 0; i < lines.length; i++) {
+        lines[i] = this.stripSoftCursorHighlight(lines[i]!);
+      }
+    }
 
     // Apply visual selection highlighting if in visual mode
     // Also keep highlighting when in command-line mode initiated from visual
