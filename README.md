@@ -24,6 +24,7 @@ That's it. When both are installed, pi-vim detects pi-fzfp at startup and integr
 
 ### Vim Motions
 - Normal, Insert, Visual, and Replace modes
+- Mode-aware cursor shape updates (Insert = bar cursor, non-Insert = block cursor)
 - Motions (`h`, `j`, `k`, `l`, `w`, `b`, `e`, `0`, `$`, `gg`, `G`, etc.)
 - Operators (`d`, `c`, `y`, `p`, etc.)
 - Text objects (`iw`, `aw`, `i"`, `a(`, etc.)
