@@ -237,7 +237,7 @@ export function handleVisualMode(
 
   // --- Count prefix ---
   if (isDigit(data) && (data !== "0" || state.countStarted)) {
-    state.count = state.count * 10 + parseInt(data, 10);
+    state.count = Math.min(state.count * 10 + parseInt(data, 10), 99999);
     state.countStarted = true;
     return true;
   }
