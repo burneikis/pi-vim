@@ -302,7 +302,7 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
 
   // Count prefix handling: 1-9 start a count, 0 continues if already started
   if (isDigit(data) && (data !== "0" || state.countStarted)) {
-    state.count = state.count * 10 + parseInt(data, 10);
+    state.count = Math.min(state.count * 10 + parseInt(data, 10), 99999);
     state.countStarted = true;
     return true;
   }
