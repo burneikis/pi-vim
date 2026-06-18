@@ -55,9 +55,20 @@ export class VimEditor extends CustomEditor {
    * Insert mode uses a thin bar; all other modes use a block.
    */
   private applyCursorShapeForMode(mode: VimState["mode"]): void {
-    const seq = mode === "insert"
-      ? VimEditor.CURSOR_BAR
-      : VimEditor.CURSOR_BLOCK;
+    const isInsert = mode === "insert";
+    const seq = isInsert ? VimEditor.CURSOR_BAR : VimEditor.CURSOR_BLOCK;
+
+    // In insert mode we strip the software (reverse-video) cursor in render()
+    // and rely on the terminal's hardware cursor to show the bar shape.
+    // pi-tui only emits/shows the hardware cursor when this is enabled, so it
+    // must be turned on here; otherwise insert mode shows no cursor at all.
+    // Other modes keep the software block cursor, so the hardware cursor is
+    // disabled to avoid drawing two cursors.
+    try {
+      this.tui.setShowHardwareCursor(isInsert);
+    } catch {
+      // Older pi-tui without hardware-cursor toggle; ignore.
+    }
 
     try {
       this.tui.terminal.write(seq);
