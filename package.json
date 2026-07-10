@@ -11,6 +11,9 @@
   "keywords": [
     "pi-package"
   ],
+  "scripts": {
+    "test": "tsx --test test/**/*.test.ts"
+  },
   "files": [
     "index.ts",
     "keys.ts",
@@ -39,5 +42,9 @@
   },
   "optionalDependencies": {
     "@burneikis/pi-fzfp": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0"
   }
 }

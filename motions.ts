@@ -25,7 +25,7 @@ export type MotionFn = (
 // --- Character classification helpers ---
 
 function isWordChar(ch: string): boolean {
-  return /[a-zA-Z0-9_]/.test(ch);
+  return /[\p{L}\p{N}_]/u.test(ch);
 }
 
 function isPunctuation(ch: string): boolean {
@@ -102,8 +102,9 @@ function nextWordStart(
     }
     text = lines[line] || "";
     col = 0;
-    // If the new line is non-empty, we stop at col 0
-    if (text.length > 0) break;
+    // Empty lines are word boundaries in Vim. On non-empty lines, continue
+    // through indentation rather than stopping on whitespace at column zero.
+    if (text.length === 0) break;
   }
 
   return { line, col };
@@ -247,7 +248,9 @@ function nextWORDStart(
     }
     text = lines[line] || "";
     col = 0;
-    if (text.length > 0) break;
+    // Empty lines are WORD boundaries; leading whitespace on a non-empty
+    // line is not.
+    if (text.length === 0) break;
   }
 
   return { line, col };

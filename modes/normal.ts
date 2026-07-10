@@ -98,6 +98,45 @@ function applyOperatorWithMotion(
   applyOperatorToRange(ctx, lines, range);
 }
 
+/** Execute w/W, including Vim's operator-specific word-motion rules. */
+function executeWordForward(
+  motion: MotionFn,
+  endMotion: MotionFn,
+  ctx: NormalModeContext,
+  count: number,
+): void {
+  const lines = ctx.getText().split("\n");
+  const cursor = ctx.getCursor();
+  const operator = ctx.state.pendingOperator;
+  const currentChar = (lines[cursor.line] || "")[cursor.col] || "";
+
+  // `cw`/`cW` behave like `ce`/`cE` when not started in whitespace.
+  let result = operator === "c" && !/[ \t]/.test(currentChar)
+    ? endMotion(lines, cursor, count)
+    : motion(lines, cursor, count);
+
+  // A single `dw`/`dW` on the last word of a line does not consume the
+  // newline. Larger counts really do cross the line boundary.
+  if (
+    operator === "d" &&
+    count === 1 &&
+    result.position.line > cursor.line &&
+    /\S/.test((lines[cursor.line] || "").slice(cursor.col))
+  ) {
+    result = {
+      position: {
+        line: cursor.line,
+        col: Math.max(0, (lines[cursor.line] || "").length - 1),
+      },
+      linewise: false,
+      inclusive: true,
+    };
+  }
+
+  if (operator) applyOperatorWithMotion(ctx, lines, cursor, result);
+  else ctx.moveCursorTo(result.position.line, result.position.col);
+}
+
 /**
  * Apply a pending operator to a given range.
  */
@@ -304,6 +343,7 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
   if (isDigit(data) && (data !== "0" || state.countStarted)) {
     state.count = Math.min(state.count * 10 + parseInt(data, 10), 99999);
     state.countStarted = true;
+    if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
     return true;
   }
 
@@ -331,7 +371,7 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
       if (isCurrentlyRecording()) {
         recordKey(data);
       }
-      applyLinewiseOperator(ctx, data, count);
+      applyLinewiseOperator(ctx, data, state.pendingOperatorCount * count);
       return true;
     }
     if (state.pendingOperator) {
@@ -345,12 +385,16 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
       startRecording();
       // Record count digits if any
       if (countExplicit) {
-        recordKey(String(count));
+        for (const digit of String(count)) recordKey(digit);
       }
       recordKey(data);
     }
     state.pendingOperator = data;
-    // Don't reset count - it carries over to the motion
+    state.pendingOperatorCount = count;
+    // The motion has its own count. Vim multiplies it by the operator count:
+    // `2d3w` is six words, not twenty-three.
+    state.count = 0;
+    state.countStarted = false;
     return true;
   }
 
@@ -397,12 +441,16 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
     return true;
   }
 
+  const motionCount = state.pendingOperator
+    ? state.pendingOperatorCount * count
+    : count;
+
   switch (data) {
     // === Basic directional motions ===
     case "h":
       if (state.pendingOperator) {
         if (isCurrentlyRecording()) recordKey(data);
-        executeMotionForOperator("h", ctx, count);
+        executeMotionForOperator("h", ctx, motionCount);
       } else {
         for (let i = 0; i < count; i++) ctx.superHandleInput(ESCAPE_SEQS.left);
         resetOperatorState(state);
@@ -415,7 +463,7 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
         // j with operator is linewise
         const lines = ctx.getText().split("\n");
         const cursor = ctx.getCursor();
-        const endLine = Math.min(cursor.line + count, lines.length - 1);
+        const endLine = Math.min(cursor.line + motionCount, lines.length - 1);
         const range: OperatorRange = {
           start: { line: cursor.line, col: 0 },
           end: { line: endLine, col: (lines[endLine] || "").length },
@@ -435,7 +483,7 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
         // k with operator is linewise
         const lines = ctx.getText().split("\n");
         const cursor = ctx.getCursor();
-        const startLine = Math.max(cursor.line - count, 0);
+        const startLine = Math.max(cursor.line - motionCount, 0);
         const range: OperatorRange = {
           start: { line: startLine, col: 0 },
           end: { line: cursor.line, col: (lines[cursor.line] || "").length },
@@ -481,37 +529,37 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
     // === Word motions ===
     case "w":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(wordForward, ctx, count);
+      executeWordForward(wordForward, wordEnd, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
     case "b":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(wordBackward, ctx, count);
+      executeMotion(wordBackward, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
     case "e":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(wordEnd, ctx, count);
+      executeMotion(wordEnd, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
     case "W":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(WORDForward, ctx, count);
+      executeWordForward(WORDForward, WORDEnd, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
     case "B":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(WORDBackward, ctx, count);
+      executeMotion(WORDBackward, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
     case "E":
       if (state.pendingOperator && isCurrentlyRecording()) recordKey(data);
-      executeMotion(WORDEnd, ctx, count);
+      executeMotion(WORDEnd, ctx, motionCount);
       if (!state.pendingOperator) resetOperatorState(state);
       return true;
 
@@ -683,12 +731,17 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
     case "O": {
       beginChangeRecording(state, "O", count);
       markInsertEntry();
-      // Open line above
+      // Split at the start of the current line instead of replacing the whole
+      // buffer and walking back from EOF. The latter fails when wrapped screen
+      // rows do not correspond one-to-one with logical lines.
       const lines = ctx.getText().split("\n");
       const cursor = ctx.getCursor();
-      lines.splice(cursor.line, 0, "");
-      ctx.setText(lines.join("\n"));
-      ctx.moveCursorTo(cursor.line, 0);
+      const indent = (lines[cursor.line] || "").match(/^[ \t]*/)?.[0] || "";
+      ctx.superHandleInput(ESCAPE_SEQS.home);
+      ctx.superHandleInput(ESCAPE_SEQS.newline);
+      ctx.superHandleInput(ESCAPE_SEQS.up);
+      if (indent) ctx.superHandleInput(indent);
+      state.openLineRepeatCount = count;
       state.mode = "insert";
       resetOperatorState(state);
       return true;

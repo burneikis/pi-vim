@@ -17,6 +17,9 @@ import {
 export interface InsertModeContext {
   state: VimState;
   getCursor: () => { line: number; col: number };
+  getText: () => string;
+  setText: (text: string) => void;
+  moveCursorTo: (line: number, col: number) => void;
   superHandleInput: (data: string) => void;
 }
 
@@ -31,9 +34,19 @@ export function handleInsertMode(
   // Escape or Ctrl+[ → switch to normal mode
   if (matchesKey(data, "escape") || data === "\x1b") {
     ctx.state.mode = "normal";
-    // Move cursor left one position (vim behavior: cursor moves back on Escape)
-    // but only if not already at column 0 (to prevent moving up a line)
-    if (ctx.getCursor().col > 0) {
+    const cursor = ctx.getCursor();
+    if (ctx.state.openLineRepeatCount > 1) {
+      const lines = ctx.getText().split("\n");
+      const insertedLine = lines[cursor.line] || "";
+      const copies = Array(ctx.state.openLineRepeatCount - 1).fill(insertedLine);
+      lines.splice(cursor.line + 1, 0, ...copies);
+      ctx.setText(lines.join("\n"));
+      const targetLine = cursor.line + copies.length;
+      ctx.moveCursorTo(targetLine, Math.max(0, cursor.col - 1));
+      ctx.state.openLineRepeatCount = 1;
+    } else if (cursor.col > 0) {
+      // Move cursor left one position (vim behavior: cursor moves back on Escape)
+      // but only if not already at column 0 (to prevent moving up a line)
       ctx.superHandleInput("\x1b[D");
     }
     // Finalize dot-repeat recording when leaving insert mode

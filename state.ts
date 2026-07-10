@@ -17,6 +17,8 @@ export interface VimState {
   count: number;
   /** Pending operator: 'd', 'c', 'y', '>', '<', etc. */
   pendingOperator: string | null;
+  /** Count supplied before the pending operator (multiplied by motion count). */
+  pendingOperatorCount: number;
   /** Current register ('"' = default) */
   register: string;
   /** Last recorded change for dot-repeat */
@@ -35,6 +37,8 @@ export interface VimState {
   pendingRegister: boolean;
   /** Whether we're replaying a dot-repeat (suppress recording) */
   isReplaying: boolean;
+  /** Remaining copies for a counted `O` insertion. */
+  openLineRepeatCount: number;
 }
 
 export function createInitialState(): VimState {
@@ -42,6 +46,7 @@ export function createInitialState(): VimState {
     mode: "insert",
     count: 0,
     pendingOperator: null,
+    pendingOperatorCount: 1,
     register: '"',
     lastChange: null,
     visualAnchor: null,
@@ -51,6 +56,7 @@ export function createInitialState(): VimState {
     pendingTextObjectPrefix: null,
     pendingRegister: false,
     isReplaying: false,
+    openLineRepeatCount: 1,
   };
 }
 
@@ -58,6 +64,7 @@ export function resetOperatorState(state: VimState): void {
   state.count = 0;
   state.countStarted = false;
   state.pendingOperator = null;
+  state.pendingOperatorCount = 1;
   state.pendingCharMotion = null;
   state.pendingG = false;
   state.pendingTextObjectPrefix = null;

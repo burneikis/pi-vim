@@ -171,6 +171,9 @@ export class VimEditor extends CustomEditor {
     const ctx: InsertModeContext = {
       state: this.vimState,
       getCursor: () => this.getCursor(),
+      getText: () => this.getText(),
+      setText: (text) => this.setText(text),
+      moveCursorTo: (line, col) => this.moveCursorTo(line, col),
       superHandleInput: (d) => super.handleInput(d),
     };
     handleInsertMode(data, ctx);
