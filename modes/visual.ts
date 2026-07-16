@@ -9,6 +9,8 @@ import { resetOperatorState } from "../state.js";
 import { isDigit, ESCAPE_SEQS } from "../keys.js";
 import { matchesKey } from "@mariozechner/pi-tui";
 import {
+  charLeft,
+  charRight,
   wordForward,
   wordBackward,
   wordEnd,
@@ -472,7 +474,8 @@ export function handleVisualMode(
   // --- Motions ---
   switch (data) {
     case "h":
-      for (let i = 0; i < count; i++) ctx.superHandleInput(ESCAPE_SEQS.left);
+      // Vim: h stops at column 0, it never wraps to the previous line.
+      executeVisualMotion(charLeft, ctx, count);
       resetOperatorState(state);
       return true;
 
@@ -487,7 +490,8 @@ export function handleVisualMode(
       return true;
 
     case "l":
-      for (let i = 0; i < count; i++) ctx.superHandleInput(ESCAPE_SEQS.right);
+      // Vim: l stops on the last character, it never wraps to the next line.
+      executeVisualMotion(charRight, ctx, count);
       resetOperatorState(state);
       return true;
 

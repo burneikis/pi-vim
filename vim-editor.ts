@@ -12,11 +12,11 @@ import {
 } from "@mariozechner/pi-tui";
 import type { TUI, EditorOptions, EditorTheme, AutocompleteProvider } from "@mariozechner/pi-tui";
 import { createInitialState, modeDisplayName, type VimState } from "./state.js";
+import { moveEditorCursorTo } from "./cursor.js";
 import { handleNormalMode, type NormalModeContext } from "./modes/normal.js";
 import { handleInsertMode, type InsertModeContext } from "./modes/insert.js";
 import { handleReplaceMode, resetReplaceState, type ReplaceModeContext } from "./modes/replace.js";
 import { handleVisualMode, getVisualRange, type VisualModeContext } from "./modes/visual.js";
-import { ESCAPE_SEQS } from "./keys.js";
 import {
   handleSearchInput,
   getSearchPrompt,
@@ -243,28 +243,13 @@ export class VimEditor extends CustomEditor {
   }
 
   /**
-   * Move cursor to an absolute position by using escape sequences.
-   * Re-reads getCursor() for accurate positioning (important after setText which moves to end).
+   * Move cursor to an absolute logical position by writing the editor state
+   * directly. Arrow-key emulation is wrong here: the base editor moves
+   * up/down by *visual* (wrapped) rows, so counting logical lines with arrow
+   * presses lands on the wrong line whenever a line wraps (e.g. `G`, `gg`).
    */
   moveCursorTo(targetLine: number, targetCol: number): void {
-    const current = this.getCursor();
-
-    // Move vertically
-    if (targetLine < current.line) {
-      for (let i = current.line; i > targetLine; i--) {
-        super.handleInput(ESCAPE_SEQS.up);
-      }
-    } else if (targetLine > current.line) {
-      for (let i = current.line; i < targetLine; i++) {
-        super.handleInput(ESCAPE_SEQS.down);
-      }
-    }
-
-    // Move to line start, then right to target column
-    super.handleInput(ESCAPE_SEQS.home);
-    for (let i = 0; i < targetCol; i++) {
-      super.handleInput(ESCAPE_SEQS.right);
-    }
+    moveEditorCursorTo(this as any, targetLine, targetCol);
   }
 
   /**

@@ -49,6 +49,27 @@ function clampLine(lines: string[], line: number): number {
   return Math.max(0, Math.min(line, lines.length - 1));
 }
 
+// --- Character motions ---
+
+/**
+ * `h` - Move left within the line. Never crosses the line start (Vim default
+ * 'whichwrap' does not include h).
+ */
+export const charLeft: MotionFn = (_lines, cursor, count) => {
+  const col = Math.max(0, cursor.col - count);
+  return { position: { line: cursor.line, col }, linewise: false, inclusive: false };
+};
+
+/**
+ * `l` - Move right within the line. Never crosses the line end, and the
+ * cursor cannot rest past the last character in normal/visual mode.
+ */
+export const charRight: MotionFn = (lines, cursor, count) => {
+  const text = lines[cursor.line] || "";
+  const col = Math.min(Math.max(0, text.length - 1), cursor.col + count);
+  return { position: { line: cursor.line, col }, linewise: false, inclusive: false };
+};
+
 // --- Word motions (small word: alphanumeric/_ vs punctuation vs whitespace) ---
 
 /**

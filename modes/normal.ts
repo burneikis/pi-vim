@@ -7,6 +7,8 @@ import type { VimState } from "../state.js";
 import { resetOperatorState } from "../state.js";
 import { isDigit, ESCAPE_SEQS } from "../keys.js";
 import {
+  charLeft,
+  charRight,
   wordForward,
   wordBackward,
   wordEnd,
@@ -452,7 +454,8 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
         if (isCurrentlyRecording()) recordKey(data);
         executeMotionForOperator("h", ctx, motionCount);
       } else {
-        for (let i = 0; i < count; i++) ctx.superHandleInput(ESCAPE_SEQS.left);
+        // Vim: h stops at column 0, it never wraps to the previous line.
+        executeMotion(charLeft, ctx, count);
         resetOperatorState(state);
       }
       return true;
@@ -500,9 +503,10 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
     case "l":
       if (state.pendingOperator) {
         if (isCurrentlyRecording()) recordKey(data);
-        executeMotionForOperator("l", ctx, count);
+        executeMotionForOperator("l", ctx, motionCount);
       } else {
-        for (let i = 0; i < count; i++) ctx.superHandleInput(ESCAPE_SEQS.right);
+        // Vim: l stops on the last character, it never wraps to the next line.
+        executeMotion(charRight, ctx, count);
         resetOperatorState(state);
       }
       return true;
@@ -767,9 +771,21 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
     // === Basic editing ===
     case "x": {
       beginChangeRecording(state, "x", count);
-      // x = dl (delete char under cursor)
-      for (let i = 0; i < count; i++) {
-        ctx.superHandleInput(ESCAPE_SEQS.delete);
+      // x = dl: delete up to count chars under/after cursor, clamped to the
+      // line end. Vim never joins lines with x (no-op on an empty line).
+      const lines = ctx.getText().split("\n");
+      const cursor = ctx.getCursor();
+      const line = lines[cursor.line] || "";
+      if (cursor.col < line.length) {
+        const range: OperatorRange = {
+          start: { line: cursor.line, col: cursor.col },
+          end: { line: cursor.line, col: Math.min(cursor.col + count - 1, line.length - 1) },
+          linewise: false,
+          inclusive: true,
+        };
+        const result = applyOperator("d", lines, range, state.register);
+        ctx.setText(result.newLines.join("\n"));
+        ctx.moveCursorTo(result.cursor.line, result.cursor.col);
       }
       finalizeChangeRecording(state);
       resetOperatorState(state);
@@ -778,8 +794,20 @@ export function handleNormalMode(data: string, ctx: NormalModeContext): boolean 
 
     case "X": {
       beginChangeRecording(state, "X", count);
-      for (let i = 0; i < count; i++) {
-        ctx.superHandleInput(ESCAPE_SEQS.backspace);
+      // X = dh: delete up to count chars before cursor, clamped to the line
+      // start. Vim never joins lines with X (no-op at column 0).
+      const lines = ctx.getText().split("\n");
+      const cursor = ctx.getCursor();
+      if (cursor.col > 0) {
+        const range: OperatorRange = {
+          start: { line: cursor.line, col: Math.max(0, cursor.col - count) },
+          end: { line: cursor.line, col: cursor.col - 1 },
+          linewise: false,
+          inclusive: true,
+        };
+        const result = applyOperator("d", lines, range, state.register);
+        ctx.setText(result.newLines.join("\n"));
+        ctx.moveCursorTo(result.cursor.line, result.cursor.col);
       }
       finalizeChangeRecording(state);
       resetOperatorState(state);

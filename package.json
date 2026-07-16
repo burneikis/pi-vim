@@ -16,6 +16,7 @@
   },
   "files": [
     "index.ts",
+    "cursor.ts",
     "keys.ts",
     "motions.ts",
     "operators.ts",
