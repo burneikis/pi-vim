@@ -86,6 +86,41 @@ export class VimEditor extends CustomEditor {
   }
 
   /**
+   * Replace the buffer text while keeping the base editor's paste registry.
+   *
+   * Recent pi-tui versions clear `pastes`/`pasteCounter` inside `setText()`
+   * (it assumes a programmatic text replacement discards any `[paste #N ...]`
+   * markers). Vim rewrites the whole buffer for almost every edit (`o`, `dd`,
+   * `p`, ...), which silently dropped the registry and left the literal marker
+   * text in the submitted message instead of the pasted content.
+   *
+   * We snapshot the registry, let the base editor do its work, then restore the
+   * entries whose markers still exist in the new text. `pasteCounter` is kept at
+   * its previous value so ids are never reused.
+   */
+  override setText(text: string): void {
+    const self = this as any;
+    const saved: Map<number, string> | undefined =
+      self.pastes instanceof Map && self.pastes.size > 0 ? new Map(self.pastes) : undefined;
+    const savedCounter: number | undefined =
+      typeof self.pasteCounter === "number" ? self.pasteCounter : undefined;
+
+    super.setText(text);
+
+    if (!saved || !(self.pastes instanceof Map)) return;
+    const newText = this.getText();
+    for (const [id, content] of saved) {
+      if (self.pastes.has(id)) continue;
+      if (new RegExp(`\\[paste #${id}( (\\+\\d+ lines|\\d+ chars))?\\]`).test(newText)) {
+        self.pastes.set(id, content);
+      }
+    }
+    if (savedCounter !== undefined && self.pasteCounter < savedCounter) {
+      self.pasteCounter = savedCounter;
+    }
+  }
+
+  /**
    * Undo: snapshot current state to redo stack, then perform base editor undo.
    * Works at the same level as the base editor's internal state.
    */
@@ -123,6 +158,22 @@ export class VimEditor extends CustomEditor {
   }
 
   handleInput(data: string): void {
+    // --- Bracketed paste ---
+    // The base editor buffers paste chunks itself (\x1b[200~ ... \x1b[201~) and
+    // turns large pastes into `[paste #N ...]` markers. Terminals deliver a
+    // paste as several stdin chunks, so every chunk must reach the base editor.
+    // If vim's mode handlers see a chunk, the payload gets interpreted as vim
+    // commands and the base editor stays stuck with isInPaste = true, which
+    // swallows all later keystrokes and loses the paste marker.
+    //
+    // `isInPaste` is the base editor's own flag: it is true for every chunk
+    // after the intro sequence and is cleared before the base editor recurses
+    // into handleInput() with any trailing keys, so those still reach vim.
+    if ((this as any).isInPaste || data.includes("\x1b[200~")) {
+      super.handleInput(data);
+      return;
+    }
+
     const { vimState } = this;
     const modeBefore = vimState.mode;
     const textBefore = this.getText();
