@@ -16,6 +16,7 @@ import { VimEditor } from "./vim-editor.js";
 
 export default function (pi: ExtensionAPI) {
   let wrapAutocomplete: ((provider: AutocompleteProvider) => AutocompleteProvider) | undefined;
+  let activeEditor: VimEditor | undefined;
 
   // Ack fzfp's editor check — registered at factory time so it's always ready.
   pi.events.on("pi-fzfp:check-editor", (ack: () => void) => { ack(); });
@@ -27,8 +28,18 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => {
-    ctx.ui.setEditorComponent((tui, theme, keybindings) =>
-      new VimEditor(tui, theme, keybindings, undefined, wrapAutocomplete)
-    );
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => {
+      activeEditor = new VimEditor(tui, theme, keybindings, undefined, wrapAutocomplete);
+      return activeEditor;
+    });
+  });
+
+  pi.on("session_shutdown", () => {
+    try {
+      activeEditor?.resetTerminalCursor();
+    } catch {
+      // Best-effort cleanup; ignore teardown errors.
+    }
+    activeEditor = undefined;
   });
 }

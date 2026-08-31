@@ -36,6 +36,7 @@ export class VimEditor extends CustomEditor {
    */
   private static readonly CURSOR_BLOCK = "\x1b[2 q";
   private static readonly CURSOR_BAR = "\x1b[6 q";
+  private static readonly CURSOR_DEFAULT = "\x1b[0 q";
 
   constructor(
     tui: TUI,
@@ -72,6 +73,21 @@ export class VimEditor extends CustomEditor {
 
     try {
       this.tui.terminal.write(seq);
+    } catch {
+      // Ignore terminals that don't support DECSCUSR.
+    }
+  }
+
+  /** Restore the terminal's default cursor shape on session shutdown. */
+  resetTerminalCursor(): void {
+    try {
+      this.tui.setShowHardwareCursor(false);
+    } catch {
+      // Older pi-tui without hardware-cursor toggle; ignore.
+    }
+
+    try {
+      this.tui.terminal.write(VimEditor.CURSOR_DEFAULT);
     } catch {
       // Ignore terminals that don't support DECSCUSR.
     }
