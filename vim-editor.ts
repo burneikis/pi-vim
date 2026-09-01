@@ -80,17 +80,7 @@ export class VimEditor extends CustomEditor {
 
   /** Restore the terminal's default cursor shape on session shutdown. */
   resetTerminalCursor(): void {
-    try {
-      this.tui.setShowHardwareCursor(false);
-    } catch {
-      // Older pi-tui without hardware-cursor toggle; ignore.
-    }
-
-    try {
-      this.tui.terminal.write(VimEditor.CURSOR_DEFAULT);
-    } catch {
-      // Ignore terminals that don't support DECSCUSR.
-    }
+    this.tui.terminal.write(VimEditor.CURSOR_DEFAULT);
   }
 
   /**

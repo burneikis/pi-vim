@@ -35,11 +35,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", () => {
-    try {
-      activeEditor?.resetTerminalCursor();
-    } catch {
-      // Best-effort cleanup; ignore teardown errors.
-    }
+    activeEditor?.resetTerminalCursor();
     activeEditor = undefined;
   });
 }
