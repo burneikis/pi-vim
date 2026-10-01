@@ -72,6 +72,18 @@ export function resetOperatorState(state: VimState): void {
   state.register = '"';
 }
 
+export function hasPendingCommand(state: VimState): boolean {
+  return (
+    state.countStarted ||
+    state.pendingOperator !== null ||
+    state.pendingCharMotion !== null ||
+    state.pendingG ||
+    state.pendingTextObjectPrefix !== null ||
+    state.pendingRegister ||
+    state.register !== '"'
+  );
+}
+
 export function modeDisplayName(mode: VimMode): string {
   switch (mode) {
     case "normal": return "NORMAL";

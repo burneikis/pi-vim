@@ -279,3 +279,43 @@ test("counted O repeats the inserted line like Vim", () => {
   assert.equal(e.text(), "  X\n  X\n  X\n  foo\nbar");
   assert.deepEqual(e.cursor(), { line: 2, col: 2 });
 });
+
+function editorWithEscapeSpy(initial: string) {
+  const e = editor(initial);
+  const passedThrough: string[] = [];
+  const forward = e.normal.superHandleInput;
+  e.normal.superHandleInput = data => {
+    if (data === "\x1b") passedThrough.push(data);
+    forward(data);
+  };
+  return { ...e, passedThrough };
+}
+
+test("Escape with no pending command reaches the app", () => {
+  const e = editorWithEscapeSpy("foo bar");
+  e.key("\x1b");
+  assert.deepEqual(e.passedThrough, ["\x1b"]);
+});
+
+for (const keys of [["c"], ["d"], ["y"], ["3"], ["g"], ["f"], ["r"], ["d", "i"], ['"'], ['"', "a"], ["2", "d"]]) {
+  test(`Escape after ${keys.join("")} cancels the command without reaching the app`, () => {
+    const e = editorWithEscapeSpy("foo bar");
+    for (const key of keys) e.key(key);
+    e.key("\x1b");
+    assert.deepEqual(e.passedThrough, []);
+    e.key("w");
+    assert.equal(e.text(), "foo bar");
+    assert.equal(e.state.mode, "normal");
+    assert.deepEqual(e.cursor(), { line: 0, col: 4 });
+    e.key("\x1b");
+    assert.deepEqual(e.passedThrough, ["\x1b"]);
+  });
+}
+
+test("cancelled operator is not recorded for dot-repeat", () => {
+  const e = editor("foo bar baz");
+  e.key("x");
+  e.key("c"); e.key("\x1b");
+  e.key(".");
+  assert.equal(e.text(), "o bar baz");
+});

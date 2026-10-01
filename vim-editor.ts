@@ -6,7 +6,6 @@
 import { CustomEditor } from "@mariozechner/pi-coding-agent";
 import {
   CURSOR_MARKER,
-  matchesKey,
   truncateToWidth,
   visibleWidth,
 } from "@mariozechner/pi-tui";
@@ -249,12 +248,6 @@ export class VimEditor extends CustomEditor {
   }
 
   private handleNormal(data: string): void {
-    // Escape in normal mode → pass to super (abort agent, etc.)
-    if (matchesKey(data, "escape")) {
-      super.handleInput(data);
-      return;
-    }
-
     const ctx: NormalModeContext = {
       state: this.vimState,
       superHandleInput: (d) => super.handleInput(d),

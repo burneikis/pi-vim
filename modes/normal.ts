@@ -4,8 +4,9 @@
  */
 
 import type { VimState } from "../state.js";
-import { resetOperatorState } from "../state.js";
+import { resetOperatorState, hasPendingCommand } from "../state.js";
 import { isDigit, ESCAPE_SEQS } from "../keys.js";
+import { matchesKey } from "@mariozechner/pi-tui";
 import {
   charLeft,
   charRight,
@@ -47,6 +48,7 @@ import {
   finalizeRecording,
   getLastChange,
   isCurrentlyRecording,
+  discardRecording,
 } from "../repeat.js";
 import { resetReplaceState } from "./replace.js";
 import {
@@ -212,6 +214,11 @@ function applyLinewiseOperator(
  */
 export function handleNormalMode(data: string, ctx: NormalModeContext): boolean {
   const { state } = ctx;
+
+  if (matchesKey(data, "escape")) {
+    handleEscape(data, ctx);
+    return true;
+  }
 
   // --- Pending register selection (after `"`) ---
   if (state.pendingRegister) {
@@ -949,6 +956,20 @@ function executeMotionForOperator(
   };
 
   applyOperatorWithMotion(ctx, lines, cursor, motionResult);
+}
+
+/**
+ * Escape cancels a half-typed command. Only a bare Escape reaches the app,
+ * where it aborts the running agent.
+ */
+function handleEscape(data: string, ctx: NormalModeContext): void {
+  const { state } = ctx;
+  if (!hasPendingCommand(state)) {
+    ctx.superHandleInput(data);
+    return;
+  }
+  resetOperatorState(state);
+  if (!state.isReplaying) discardRecording();
 }
 
 /**
